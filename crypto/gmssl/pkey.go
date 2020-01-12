@@ -577,6 +577,14 @@ import (
 	"unsafe"
 )
 
+var (
+	sm2keygenargs = map[string]string{
+		"ec_paramgen_curve": "sm2p256v1",
+	}
+
+	alg = "EC"
+)
+
 func GetPublicKeyAlgorithmNames() []string {
 	return []string{
 		"DH",
@@ -747,6 +755,42 @@ func GeneratePrivateKey(alg string, args map[string]string, eng *Engine) (*Priva
 	return sk, nil
 }
 
+func GeneratePrivateKeyByDefault() (*PrivateKey, error) {
+	calg := C.CString(alg)
+	defer C.free(unsafe.Pointer(calg))
+
+	ctx := C.new_pkey_keygen_ctx(calg, nil)
+	if ctx == nil {
+		return nil, GetErrors()
+	}
+	var pkey *C.EVP_PKEY
+
+	if 1 != C.EVP_PKEY_keygen_init(ctx) {
+		return nil, GetErrors()
+	}
+
+	for name, value := range sm2keygenargs {
+		cname := C.CString(name)
+		defer C.free(unsafe.Pointer(cname))
+		cvalue := C.CString(value)
+		defer C.free(unsafe.Pointer(cvalue))
+		if C.EVP_PKEY_CTX_ctrl_str(ctx, cname, cvalue) <= 0 {
+			return nil, GetErrors()
+		}
+	}
+
+	if 1 != C.EVP_PKEY_keygen(ctx, &pkey) {
+		return nil, GetErrors()
+	}
+
+	sk := &PrivateKey{pkey}
+	runtime.SetFinalizer(sk, func(sk *PrivateKey) {
+		C.EVP_PKEY_free(sk.pkey)
+	})
+
+	return sk, nil
+}
+
 func NewPrivateKeyFromPEM(pem string, pass string) (*PrivateKey, error) {
 	cpem := C.CString(pem)
 	defer C.free(unsafe.Pointer(cpem))
@@ -818,7 +862,24 @@ func (sk *PrivateKey) GetPublicKeyPEM() (string, error) {
 	return C.GoString(p)[:len], nil
 }
 
-func (sk *PrivateKey) GetRaw() ([]byte, error) {
+func (sk *PrivateKey) GetPkRawBytes() ([]byte, error) {
+	var raw *C.uchar
+	ecKey := C.get_ec_key(sk.pkey)
+	len := C.EC_KEY_key2buf(
+		ecKey,
+		C.EC_KEY_get_conv_form(ecKey),
+		(**C.uchar)(unsafe.Pointer(&raw)),
+		nil,
+	)
+	if len == 0 {
+		return nil, errors.New("Allocate mem err")
+	}
+	defer C.openssl_free(unsafe.Pointer(raw))
+
+	return C.GoBytes(unsafe.Pointer(raw), (C.int)(len)), nil
+}
+
+func (sk *PrivateKey) GetRawBytes() ([]byte, error) {
 	var raw *C.uchar
 	len := C.EC_KEY_priv2buf(C.get_ec_key(sk.pkey), (**C.uchar)(unsafe.Pointer(&raw)))
 	if len == 0 {
@@ -881,6 +942,23 @@ func (pk *PublicKey) GetPEM() (string, error) {
 		return "", GetErrors()
 	}
 	return C.GoString(p)[:len], nil
+}
+
+func (pk *PublicKey) GetRawBytes() ([]byte, error) {
+	var raw *C.uchar
+	ecKey := C.get_ec_key(pk.pkey)
+	len := C.EC_KEY_key2buf(
+		ecKey,
+		C.EC_KEY_get_conv_form(ecKey),
+		(**C.uchar)(unsafe.Pointer(&raw)),
+		nil,
+	)
+	if len == 0 {
+		return nil, errors.New("Allocate mem err")
+	}
+	defer C.openssl_free(unsafe.Pointer(raw))
+
+	return C.GoBytes(unsafe.Pointer(raw), (C.int)(len)), nil
 }
 
 func (pk *PublicKey) GetText() (string, error) {
