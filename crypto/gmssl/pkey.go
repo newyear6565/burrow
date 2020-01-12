@@ -59,9 +59,11 @@ package gmssl
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
+#include <openssl/ossl_typ.h>
 #include <openssl/engine.h>
 #include <openssl/objects.h>
 #include <openssl/opensslconf.h>
+#include <internal/evp_int.h>
 
 extern long _BIO_get_mem_data(BIO *bio, char **pp);
 
@@ -556,6 +558,16 @@ unsigned char *sk_derive(EVP_PKEY *sk, const char *alg, EVP_PKEY *peer,
 	return NULL;
 }
 
+void openssl_free(void *p)
+{
+	OPENSSL_free(p);
+}
+
+EC_KEY* get_ec_key(EVP_PKEY * evp_key)
+{
+	return evp_key->pkey.ec;
+}
+
 */
 import "C"
 
@@ -804,6 +816,17 @@ func (sk *PrivateKey) GetPublicKeyPEM() (string, error) {
 		return "", GetErrors()
 	}
 	return C.GoString(p)[:len], nil
+}
+
+func (sk *PrivateKey) GetRaw() ([]byte, error) {
+	var raw *C.uchar
+	len := C.EC_KEY_priv2buf(C.get_ec_key(sk.pkey), (**C.uchar)(unsafe.Pointer(&raw)))
+	if len == 0 {
+		return nil, errors.New("Allocate mem err")
+	}
+	defer C.openssl_free(unsafe.Pointer(raw))
+
+	return C.GoBytes(unsafe.Pointer(raw), (C.int)(len)), nil
 }
 
 func (sk *PrivateKey) GetText() (string, error) {
