@@ -40,7 +40,7 @@ func Configure(output Output) func(cmd *cli.Cmd) {
 
 		keysDir := cmd.StringOpt("keys-dir", "", "Directory where keys are stored")
 
-		curveType := cmd.StringOpt("curve-type", crypto.CurveTypeEd25519.String(), "Curve type for realising keys")
+		curveType := cmd.StringOpt("curve-type", crypto.CurveTypeSm2p256v1.String(), "Curve type for realising keys")
 
 		configTemplateIn := cmd.StringsOpt("config-template-in", nil,
 			"Go text/template input filename to generate config file specified with --config-out")

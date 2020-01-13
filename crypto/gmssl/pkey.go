@@ -592,6 +592,17 @@ import (
 	"unsafe"
 )
 
+const (
+	// PublicKeySize is the size, in bytes, of public keys as used in this package.
+	PublicKeySize = 64
+	// PrivateKeySize is the size, in bytes, of private keys as used in this package.
+	PrivateKeySize = 32
+	// SignatureSize is the size, in bytes, of signatures generated and verified by this package.
+	SignatureSize = 64
+	// SeedSize is the size, in bytes, of private key seeds. These are the private key representations used by RFC 8032.
+	SeedSize = 32
+)
+
 var (
 	sm2keygenargs = map[string]string{
 		"ec_paramgen_curve": "sm2p256v1",

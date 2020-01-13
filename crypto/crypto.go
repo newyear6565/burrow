@@ -10,6 +10,7 @@ const (
 	CurveTypeUnset CurveType = iota
 	CurveTypeEd25519
 	CurveTypeSecp256k1
+	CurveTypeSm2p256v1
 )
 
 func (k CurveType) String() string {
@@ -18,6 +19,8 @@ func (k CurveType) String() string {
 		return "secp256k1"
 	case CurveTypeEd25519:
 		return "ed25519"
+	case CurveTypeSm2p256v1:
+		return "sm2p256v1"
 	case CurveTypeUnset:
 		return ""
 	default:
@@ -31,6 +34,8 @@ func (k CurveType) ABCIType() string {
 		return "secp256k1"
 	case CurveTypeEd25519:
 		return "ed25519"
+	case CurveTypeSm2p256v1:
+		return "sm2p256v1"
 	case CurveTypeUnset:
 		return ""
 	default:
@@ -49,6 +54,8 @@ func CurveTypeFromString(s string) (CurveType, error) {
 		return CurveTypeSecp256k1, nil
 	case "ed25519":
 		return CurveTypeEd25519, nil
+	case "sm2p256v1":
+		return CurveTypeSm2p256v1, nil
 	case "":
 		return CurveTypeUnset, nil
 	default:

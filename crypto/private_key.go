@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/btcsuite/btcd/btcec"
+	"github.com/hyperledger/burrow/crypto/gmssl"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -24,6 +25,11 @@ func PublicKeyFromBytes(bs []byte, curveType CurveType) (PublicKey, error) {
 		if len(bs) != btcec.PubKeyBytesLenCompressed {
 			return PublicKey{}, fmt.Errorf("bytes passed have length %v but secp256k1 public keys have %v bytes",
 				len(bs), btcec.PubKeyBytesLenCompressed)
+		}
+	case CurveTypeSm2p256v1:
+		if len(bs) != gmssl.PublicKeySize {
+			return PublicKey{}, fmt.Errorf("bytes passed have length %v but secp256k1 private keys have %v bytes",
+				len(bs), gmssl.PublicKeySize)
 		}
 	case CurveTypeUnset:
 		if len(bs) > 0 {
@@ -102,6 +108,28 @@ func PrivateKeyFromRawBytes(privKeyBytes []byte, curveType CurveType) (PrivateKe
 			return PrivateKey{}, fmt.Errorf("serialisation of Secp256k1 private key bytes does not equal")
 		}
 		return PrivateKey{PrivateKey: privKeyBytes, PublicKey: pubKey.SerializeCompressed(), CurveType: CurveTypeSecp256k1}, nil
+	case CurveTypeSm2p256v1:
+		if len(privKeyBytes) != gmssl.PrivateKeySize {
+			return PrivateKey{}, fmt.Errorf("bytes passed have length %v but secp256k1 private keys have %v bytes",
+				len(privKeyBytes), gmssl.PrivateKeySize)
+		}
+		eckey, err := gmssl.NewPrivateKeyFromOct(privKeyBytes)
+		if err != nil {
+			return PrivateKey{}, err
+		}
+		skey, err := eckey.GetRawBytes()
+		if err != nil {
+			return PrivateKey{}, err
+		}
+		pkey, err := eckey.GetPkRawBytes()
+		if err != nil {
+			return PrivateKey{}, err
+		}
+		return PrivateKey{
+			PrivateKey: skey,
+			PublicKey:  pkey,
+			CurveType:  CurveTypeSm2p256v1,
+		}, nil
 	default:
 		return PrivateKey{}, ErrInvalidCurve(curveType)
 	}
@@ -125,6 +153,12 @@ func GeneratePrivateKey(random io.Reader, curveType CurveType) (PrivateKey, erro
 			return PrivateKey{}, err
 		}
 		return PrivateKeyFromRawBytes(privKeyBytes, CurveTypeSecp256k1)
+	case CurveTypeSm2p256v1:
+		privKeyBytes := make([]byte, 32)
+		if _, err := random.Read(privKeyBytes); err != nil {
+			return PrivateKey{}, err
+		}
+		return PrivateKeyFromRawBytes(privKeyBytes, CurveTypeSm2p256v1)
 	default:
 		return PrivateKey{}, ErrInvalidCurve(curveType)
 	}

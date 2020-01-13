@@ -49,8 +49,9 @@
 package sm3
 
 import (
-	"github.com/hyperledger/burrow/crypto/gmssl"
 	"hash"
+
+	"github.com/hyperledger/burrow/crypto/gmssl"
 )
 
 type digest struct {

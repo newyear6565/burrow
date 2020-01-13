@@ -14,7 +14,7 @@ func TestGeneratePrivateKey(t *testing.T) {
 		1, 2, 3, 4, 5, 6, 7, 8,
 		1, 2, 3, 4, 5, 6, 7, 8,
 		1, 2, 3, 4, 5, 6, 7, 8,
-	}), CurveTypeEd25519)
+	}), CurveTypeSm2p256v1)
 	require.NoError(t, err)
 	assert.NoError(t, EnsureEd25519PrivateKeyCorrect(privateKey.RawBytes()))
 	badKey := privateKey.RawBytes()
