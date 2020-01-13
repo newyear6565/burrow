@@ -64,6 +64,7 @@ package gmssl
 #include <openssl/objects.h>
 #include <openssl/opensslconf.h>
 #include <internal/evp_int.h>
+#include <internal/ec_lcl.h>
 
 extern long _BIO_get_mem_data(BIO *bio, char **pp);
 
@@ -568,6 +569,20 @@ EC_KEY* get_ec_key(EVP_PKEY * evp_key)
 	return evp_key->pkey.ec;
 }
 
+int gen_pub_key(EC_KEY* eckey)
+{
+	if(
+		eckey == NULL
+		|| eckey->group == NULL
+		|| eckey->group->meth == NULL
+		|| eckey->group->meth->keygenpub == NULL
+		|| eckey->group->meth->keygenpub(eckey) == 0
+	) {
+		return 0;
+	}
+	return 1;
+}
+
 */
 import "C"
 
@@ -789,6 +804,45 @@ func GeneratePrivateKeyByDefault() (*PrivateKey, error) {
 	})
 
 	return sk, nil
+}
+
+func (ec *C.EC_KEY) GetRawBytes() ([]byte, error) {
+	var raw *C.uchar
+	len := C.EC_KEY_priv2buf(ec, (**C.uchar)(unsafe.Pointer(&raw)))
+	if len == 0 {
+		return nil, errors.New("Allocate mem err")
+	}
+	defer C.openssl_free(unsafe.Pointer(raw))
+
+	return C.GoBytes(unsafe.Pointer(raw), (C.int)(len)), nil
+}
+
+func (ec *C.EC_KEY) GetPkRawBytes() ([]byte, error) {
+	var raw *C.uchar
+	if 1 != C.gen_pub_key(ec) {
+		return nil, errors.New("gen pub key err")
+	}
+	len := C.EC_KEY_key2buf(
+		ec,
+		C.EC_KEY_get_conv_form(ec),
+		(**C.uchar)(unsafe.Pointer(&raw)),
+		nil,
+	)
+	if len == 0 {
+		return nil, errors.New("Allocate mem err")
+	}
+	defer C.openssl_free(unsafe.Pointer(raw))
+
+	return C.GoBytes(unsafe.Pointer(raw), (C.int)(len)), nil
+}
+
+func NewPrivateKeyFromOct(rawBytes []byte) (*C.EC_KEY, error) {
+	eckey := C.EC_KEY_new_by_curve_name(C.NID_sm2p256v1)
+
+	if 1 != C.EC_KEY_oct2priv(eckey, (*C.uchar)(unsafe.Pointer(&rawBytes[0])), (C.ulong)(len(rawBytes))) {
+		return nil, errors.New("err get private key from bytes")
+	}
+	return eckey, nil
 }
 
 func NewPrivateKeyFromPEM(pem string, pass string) (*PrivateKey, error) {
