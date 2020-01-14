@@ -853,6 +853,9 @@ func NewPrivateKeyFromOct(rawBytes []byte) (*C.EC_KEY, error) {
 	if 1 != C.EC_KEY_oct2priv(eckey, (*C.uchar)(unsafe.Pointer(&rawBytes[0])), (C.ulong)(len(rawBytes))) {
 		return nil, errors.New("err get private key from bytes")
 	}
+	runtime.SetFinalizer(&eckey, func(eckey **C.EC_KEY){
+		C.EC_KEY_free(*eckey)
+	})
 	return eckey, nil
 }
 
