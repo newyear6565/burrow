@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/btcsuite/btcd/btcec"
+	"github.com/hyperledger/burrow/crypto/gmssl"
+	"github.com/hyperledger/burrow/crypto/gmssl/sm3"
 	"github.com/tendermint/tendermint/crypto/tmhash"
 	hex "github.com/tmthrgd/go-hex"
 	"golang.org/x/crypto/ed25519"
@@ -27,6 +29,8 @@ func PublicKeyLength(curveType CurveType) int {
 		return ed25519.PublicKeySize
 	case CurveTypeSecp256k1:
 		return btcec.PubKeyBytesLenCompressed
+	case CurveTypeSm2p256v1:
+		return gmssl.PublicKeySize
 	default:
 		// Other functions rely on this
 		return 0
@@ -102,6 +106,16 @@ func (p PublicKey) Verify(msg []byte, signature *Signature) error {
 		}
 		return fmt.Errorf("signature '%X' is not a valid secp256k1 signature for message: %s",
 			signature.Signature, string(msg))
+	case CurveTypeSm2p256v1:
+		pub, err := gmssl.NewPublicKeyFromOct(p.PublicKey)
+		if err != nil {
+			return fmt.Errorf("could not parse sm2p256v1 public key: %v", err)
+		}
+		if 1 == pub.Verify(msg, signature.Signature) {
+			return nil
+		}
+		return fmt.Errorf("signature '%X' is not a valid sm2p256v1 signature for message: %s",
+			signature.Signature, string(msg))
 	default:
 		return fmt.Errorf("invalid curve type")
 	}
@@ -120,6 +134,12 @@ func (p PublicKey) GetAddress() Address {
 		hash := Keccak256(pub.SerializeUncompressed()[1:])
 		addr, _ := AddressFromBytes(hash[len(hash)-20:])
 		return addr
+	case CurveTypeSm2p256v1:
+		sm3hash := sm3.New()
+		sm3hash.Write(p.PublicKey)
+		ret := sm3hash.Sum(nil)
+		addr, _ := AddressFromBytes(ret[len(ret)-20:])
+		return addr
 	default:
 		panic(fmt.Sprintf("unknown CurveType %d", p.CurveType))
 	}
@@ -131,6 +151,8 @@ func (p PublicKey) AddressHashType() string {
 		return "go-crypto-0.5.0"
 	case CurveTypeSecp256k1:
 		return "btc"
+	case CurveTypeSm2p256v1:
+		return "sm2p256v1"
 	default:
 		return ""
 	}

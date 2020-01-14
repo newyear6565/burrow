@@ -26,6 +26,7 @@ const (
 	CryptoAESGCM  = "scrypt-aes-gcm"
 	HashEd25519   = "go-crypto-0.5.0"
 	HashSecp256k1 = "btc"
+	HashSm2p256v1 = "sm2p256v1"
 )
 
 //-----------------------------------------------------------------------------

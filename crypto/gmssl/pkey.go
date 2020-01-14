@@ -589,7 +589,7 @@ int sm2_sign(const unsigned char *dgst, int dlen,
 {
 	ECDSA_SIG *s;
 	RAND_seed(dgst, dlen);
-	s = ECDSA_do_sign_ex(dgst, dlen, NULL, NULL, eckey);
+	s = SM2_do_sign_ex(dgst, dlen, NULL, NULL, eckey);
 	if (s == NULL) {
 		*siglen = 0;
 		return 0;
@@ -597,6 +597,38 @@ int sm2_sign(const unsigned char *dgst, int dlen,
 	*siglen = i2d_ECDSA_SIG(s, sig);
 	ECDSA_SIG_free(s);
 	return 1;
+}
+
+int sm2_verify(const unsigned char *dgst, int dgstlen,
+	const unsigned char *sig, int siglen, EC_KEY *ec_key)
+{
+	ECDSA_SIG *s;
+	const unsigned char *p = sig;
+	unsigned char *der = NULL;
+	int derlen = -1;
+	int ret = -1;
+
+	if (!(s = ECDSA_SIG_new())) {
+		return ret;
+	}
+	if (!d2i_ECDSA_SIG(&s, &p, siglen)) {
+		goto err;
+	}
+	derlen = i2d_ECDSA_SIG(s, &der);
+	if (derlen != siglen || memcmp(sig, der, derlen)) {
+		goto err;
+	}
+
+	ret = SM2_do_verify(dgst, dgstlen, s, ec_key);
+
+err:
+	if (derlen > 0) {
+		OPENSSL_cleanse(der, derlen);
+		OPENSSL_free(der);
+	}
+
+	ECDSA_SIG_free(s);
+	return ret;
 }
 
 */
@@ -833,6 +865,15 @@ func GeneratePrivateKeyByDefault() (*PrivateKey, error) {
 	return sk, nil
 }
 
+func (ec *C.EC_KEY) Verify(msg []byte, sig []byte) int {
+	return int(C.sm2_verify(
+		(*C.uchar)(unsafe.Pointer(&msg[0])),
+		(C.int)(len(msg)),
+		(*C.uchar)(unsafe.Pointer(&sig[0])),
+		(C.int)(len(sig)),
+		ec))
+}
+
 func (ec *C.EC_KEY) Sign(digest []byte) ([]byte, error) {
 	var sig *C.uchar
 	var sigLen C.int
@@ -854,6 +895,22 @@ func (ec *C.EC_KEY) Sign(digest []byte) ([]byte, error) {
 func (ec *C.EC_KEY) GetRawBytes() ([]byte, error) {
 	var raw *C.uchar
 	len := C.EC_KEY_priv2buf(ec, (**C.uchar)(unsafe.Pointer(&raw)))
+	if len == 0 {
+		return nil, errors.New("Allocate mem err")
+	}
+	defer C.openssl_free(unsafe.Pointer(raw))
+
+	return C.GoBytes(unsafe.Pointer(raw), (C.int)(len)), nil
+}
+
+func (ec *C.EC_KEY) GetPkRawBytesFromPk() ([]byte, error) {
+	var raw *C.uchar
+	len := C.EC_KEY_key2buf(
+		ec,
+		C.EC_KEY_get_conv_form(ec),
+		(**C.uchar)(unsafe.Pointer(&raw)),
+		nil,
+	)
 	if len == 0 {
 		return nil, errors.New("Allocate mem err")
 	}
@@ -885,6 +942,23 @@ func NewPrivateKeyFromOct(rawBytes []byte) (*C.EC_KEY, error) {
 	eckey := C.EC_KEY_new_by_curve_name(C.NID_sm2p256v1)
 
 	if 1 != C.EC_KEY_oct2priv(eckey, (*C.uchar)(unsafe.Pointer(&rawBytes[0])), (C.ulong)(len(rawBytes))) {
+		return nil, errors.New("err get private key from bytes")
+	}
+	runtime.SetFinalizer(&eckey, func(eckey **C.EC_KEY) {
+		C.EC_KEY_free(*eckey)
+	})
+	return eckey, nil
+}
+
+func NewPublicKeyFromOct(rawBytes []byte) (*C.EC_KEY, error) {
+	eckey := C.EC_KEY_new_by_curve_name(C.NID_sm2p256v1)
+
+	if 1 != C.EC_KEY_oct2key(
+		eckey,
+		(*C.uchar)(unsafe.Pointer(&rawBytes[0])),
+		(C.ulong)(len(rawBytes)),
+		nil,
+	) {
 		return nil, errors.New("err get private key from bytes")
 	}
 	runtime.SetFinalizer(&eckey, func(eckey **C.EC_KEY) {
