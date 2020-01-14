@@ -848,9 +848,7 @@ func (ec *C.EC_KEY) Sign(digest []byte) ([]byte, error) {
 	) {
 		return nil, errors.New("sm2 Sign Err")
 	}
-	ret := C.GoBytes(unsafe.Pointer(sig), sigLen)
-	C.openssl_free(unsafe.Pointer(sig))
-	return ret, nil
+	return C.GoBytes(unsafe.Pointer(sig), sigLen), nil
 }
 
 func (ec *C.EC_KEY) GetRawBytes() ([]byte, error) {

@@ -67,6 +67,20 @@ func (p PrivateKey) Sign(msg []byte) (*Signature, error) {
 			return nil, err
 		}
 		return &Signature{CurveType: CurveTypeSecp256k1, Signature: sig.Serialize()}, nil
+	case CurveTypeSm2p256v1:
+		if len(p.PrivateKey) != gmssl.PrivateKeySize {
+			return nil, fmt.Errorf("bytes passed have length %v but secp256k1 private keys have %v bytes",
+				len(p.PrivateKey), gmssl.PrivateKeySize)
+		}
+		eckey, err := gmssl.NewPrivateKeyFromOct(p.PrivateKey)
+		if err != nil {
+			return nil, err
+		}
+		sig, err := eckey.Sign(msg)
+		if err != nil {
+			return nil, err
+		}
+		return &Signature{CurveType: CurveTypeSm2p256v1, Signature: sig}, nil
 	default:
 		return nil, ErrInvalidCurve(p.CurveType)
 	}
