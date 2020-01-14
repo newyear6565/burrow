@@ -583,6 +583,22 @@ int gen_pub_key(EC_KEY* eckey)
 	return 1;
 }
 
+int sm2_sign(const unsigned char *dgst, int dlen,
+		unsigned char **sig, unsigned int *siglen,
+		EC_KEY *eckey)
+{
+	ECDSA_SIG *s;
+	RAND_seed(dgst, dlen);
+	s = ECDSA_do_sign_ex(dgst, dlen, NULL, NULL, eckey);
+	if (s == NULL) {
+		*siglen = 0;
+		return 0;
+	}
+	*siglen = i2d_ECDSA_SIG(s, sig);
+	ECDSA_SIG_free(s);
+	return 1;
+}
+
 */
 import "C"
 
@@ -817,6 +833,26 @@ func GeneratePrivateKeyByDefault() (*PrivateKey, error) {
 	return sk, nil
 }
 
+func (ec *C.EC_KEY) Sign(digest []byte) ([]byte, error) {
+	var sig *C.uchar
+	var sigLen C.int
+
+	defer C.openssl_free(unsafe.Pointer(sig))
+
+	if 1 != C.sm2_sign(
+		(*C.uchar)(unsafe.Pointer(&digest[0])),
+		(C.int)(len(digest)),
+		(**C.uchar)(unsafe.Pointer(&sig)),
+		(*C.uint)(unsafe.Pointer(&sigLen)),
+		ec,
+	) {
+		return nil, errors.New("sm2 Sign Err")
+	}
+	ret := C.GoBytes(unsafe.Pointer(sig), sigLen)
+	C.openssl_free(unsafe.Pointer(sig))
+	return ret, nil
+}
+
 func (ec *C.EC_KEY) GetRawBytes() ([]byte, error) {
 	var raw *C.uchar
 	len := C.EC_KEY_priv2buf(ec, (**C.uchar)(unsafe.Pointer(&raw)))
@@ -853,7 +889,7 @@ func NewPrivateKeyFromOct(rawBytes []byte) (*C.EC_KEY, error) {
 	if 1 != C.EC_KEY_oct2priv(eckey, (*C.uchar)(unsafe.Pointer(&rawBytes[0])), (C.ulong)(len(rawBytes))) {
 		return nil, errors.New("err get private key from bytes")
 	}
-	runtime.SetFinalizer(&eckey, func(eckey **C.EC_KEY){
+	runtime.SetFinalizer(&eckey, func(eckey **C.EC_KEY) {
 		C.EC_KEY_free(*eckey)
 	})
 	return eckey, nil
