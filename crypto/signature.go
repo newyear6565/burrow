@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/btcsuite/btcd/btcec"
+	"github.com/hyperledger/burrow/crypto/gmssl"
 	hex "github.com/tmthrgd/go-hex"
 	"golang.org/x/crypto/ed25519"
 )
@@ -17,6 +18,11 @@ func SignatureFromBytes(bs []byte, curveType CurveType) (*Signature, error) {
 		}
 	case CurveTypeSecp256k1:
 		// TODO: validate?
+	case CurveTypeSm2p256v1:
+		if len(bs) != gmssl.SignatureSize {
+			return nil, fmt.Errorf("bytes passed have length %v by sm2p256v1 signatures have %v bytes",
+				len(bs), gmssl.SignatureSize)
+		}
 	}
 
 	return &Signature{CurveType: curveType, Signature: bs}, nil

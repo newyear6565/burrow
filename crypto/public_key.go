@@ -6,7 +6,6 @@ import (
 
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/hyperledger/burrow/crypto/gmssl"
-	"github.com/hyperledger/burrow/crypto/gmssl/sm3"
 	"github.com/tendermint/tendermint/crypto/tmhash"
 	hex "github.com/tmthrgd/go-hex"
 	"golang.org/x/crypto/ed25519"
@@ -135,9 +134,7 @@ func (p PublicKey) GetAddress() Address {
 		addr, _ := AddressFromBytes(hash[len(hash)-20:])
 		return addr
 	case CurveTypeSm2p256v1:
-		sm3hash := sm3.New()
-		sm3hash.Write(p.PublicKey)
-		ret := sm3hash.Sum(nil)
+		ret := SM3(p.PublicKey)
 		addr, _ := AddressFromBytes(ret[len(ret)-20:])
 		return addr
 	default:
